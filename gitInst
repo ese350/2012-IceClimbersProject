@@ -1,0 +1,5 @@
+touch [FILENAME]
+git add [FILENAME]
+git commit -m 'COMMENT'
+git pull
+git push -u origin master
