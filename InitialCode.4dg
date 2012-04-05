@@ -1,0 +1,39 @@
+#platform "uOLED-32028-P1_GFX2"
+
+#inherit "4DGL_16bitColours.fnc"
+
+func main()
+
+    //Draw a button
+    gfx_Button(DOWN, x, y, buttoncolour, textcolour, font, textwidth, textheigt, "text");
+    touch_Set(TOUCH_ENABLE);
+    repeat
+        // Draw the Push Button (raised)
+        gfx_Button(UP, LEFT, TOP, BLUE, RED, FONT4, TEXTWIDTH, TEXTHEIGHT, " PRESS ");
+        // set touch detect region to that of the push button
+        touch_DetectRegion(LEFT, TOP, gfx_Get(RIGHT_POS), gfx_Get(BOTTOM_POS));
+        // Wait until the button is pressed
+        while(touch_Get(TOUCH_STATUS) != TOUCH_PRESS);
+        // now redraw the Push Button (depressed)
+        gfx_Button(DOWN, LEFT, TOP, BLUE, WHITE, FONT4, TEXTWIDTH, TEXTHEIGHT, " PRESS ");
+        // Wait until the button is pressed
+        while(touch_Get(TOUCH_STATUS) != TOUCH_RELEASE);
+    forever
+
+    //Touch Detection
+    touch_Set(TOUCH_ENABLE);
+    repeat
+        touch_DetectRegion();
+        if(touch_Get(TOUCH_STATUS) == TOUCH_PRESSED)
+            touch_x := touch Get(TOUCH GETX);
+            touch_y := touch Get (TOUCH GETY);
+            if( (touch_x <= && touch_x >= ) && (touch_y <= && touch_x >= ))
+                gfx_Cls();
+                //ACTION
+                gfx_Cls();
+            endif
+        endif
+    forever
+
+endfunc
+
