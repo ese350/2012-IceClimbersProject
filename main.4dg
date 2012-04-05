@@ -97,11 +97,11 @@ redo:
 
         // if return value non zero, its a button number
         if(res)
-            if(res == MAXBUTTONS)                     // if it was the exit (last) button
+            if(res == MAXBUTTONS)                            // if it was the exit (last) button
 
                 // would normall do some exit action here
                 // but for demo we just reset the window
-                aWindow(INITIALIZE);            //Need to figure out what to do here
+                aWindow(INITIALIZE);                        //Need to figure out what to do here
                 ProgramExit();
             else
                 // update status and title
@@ -110,24 +110,24 @@ redo:
                 aWindow.statusbartext := tempstr;                   // use temp buffer for status text
                 aWindow(REDRAW_STATUS);                             // update the status bar
 
-                to(tempstr); putstr(buttons[res-1]);            // print the button text to the temp buffer
+                to(tempstr); putstr(buttons[res-1]);                // print the button text to the temp buffer
                 to(APPEND); putstr("         ");                    // clear string tail
                 aWindow.title := tempstr;                           // use temp buffer for title text
                 aWindow(REDRAW_TITLE);                              // update the title bar
 
 
                 if(res==1)
-                    file_Run("CAMERA.4xe",0);                    // just run the prog, no args
-                    goto redo;                                  //re-mount disk, reload filename
+                    file_Run("CAMERA.4xe",0);                       // just run the prog, no args
+                    goto redo;                                      // re-mount disk, reload filename
                 endif
 
                 if(res==2)
-                    file_Run("IMAGES.4xe",0);                    // just run the prog, no args
+                    file_Run("IMAGES.4xe",0);                       // just run the prog, no args
                     goto redo;
                 endif
 
                 if(res==3)                      //TEMP may potentially take an input...
-                    file_Run("TEMP.4xe",0);                    // just run the prog, no args
+                    file_Run("TEMP.4xe",0);                         // just run the prog, no args
                     goto redo;
                 endif
 
