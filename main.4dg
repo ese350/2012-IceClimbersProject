@@ -72,7 +72,7 @@ endfunc
 func main()
     var res;            // message from window
 redo:
-
+    pin_Set(OUTPUT, IO1_PIN);   //Sets IO1 to output mode
     gfx_Cls();
     txt_Set(FONT_SIZE, FONT3);
     print("Memory available = ",mem_Heap(),"\n");  // show the biggest chunk we have
@@ -118,7 +118,7 @@ redo:
 
                 if(res==1)
                     file_Run("CAMERA.4xe",0);                    // just run the prog, no args
-                    goto redo;
+                    goto redo;                                  //re-mount disk, reload filename
                 endif
 
                 if(res==2)
@@ -132,8 +132,13 @@ redo:
                 endif
 
                if(res==4)
-                    file_Run("LIGHTS.4xe",0);                    // just run the prog, no args
-                    goto redo;
+                    if (pin_Read(IO1_PIN) == 0) //Read value of the IO1 pin
+                        pin_HI(IO1_PIN);        //sets pin to HIGH -- Turns on Light
+
+                    else
+                        pin_LO(IO1_PIN);        //sets pin LO -- Turns off Light
+                    endif
+
                 endif
 
             endif
