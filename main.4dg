@@ -1,0 +1,362 @@
+#platform "uLCD-32PT_GFX2"
+
+/*************************************************
+* Filename: Main.4dg
+* Description: the main program to be run on LCD Fash
+*
+* NB:- This program must be written to flash so
+* it becomes the top down program.
+*
+**************************************************/
+
+#inherit "4DGL_16bitColours.fnc"
+//#inherit "FONT4.fnt"
+
+#MODE RUNFLASH      // this prog intended to be 'front end' and run from FLASH
+
+#STACK 800          // make sure stack is big enough for main prog and called functions/programs
+
+
+
+// colour scheme
+#CONST
+    WINDOW_COLOR        GRAY
+    TITLEBAR_COLOR      NAVY
+    TITLETXT_COLOR      CYAN
+    STATUSBAR_COLOR     GRAY
+    STATUSTXT_COLOR     YELLOW
+#END
+
+//--------------------------------------------------------------------------------------------
+// local global variables
+//--------------------------------------------------------------------------------------------
+
+
+
+var D;                                  // pointer to disk struct
+
+                                        // (we keep 2 copies so we can test for a state -
+var tempstr[20];                        // general purpose string, 40 bytes
+
+
+
+// fixed button texts
+#DATA
+    word buttons tst1, tst2, tst3, tst4, btnexit
+    byte tst1  "CAMERA    \0"
+    byte tst2  "PICTURES   \0"
+    byte tst3  "TEMPERATURE\0"
+    byte tst4  "LIGHTS    \0"
+    byte btnexit "_\0"
+#END
+
+#constant MAXBUTTONS sizeof(buttons)
+
+
+// mount the drive, return status message
+// and D will be null if mount fails
+
+//Left same as original. Probably needed
+func init_Drive()
+    var retry := 10;
+    if(!(D := file_Mount()))
+        while(retry--)
+            if((D := file_Mount())) break;
+        wend
+        if (retry) return "Mount Failed!";
+    endif
+    return "Disk mounted";
+endfunc
+
+//==================================================================================================
+func main()
+    var res;            // message from window
+redo:
+    pin_Set(OUTPUT, IO1_PIN);   //Sets IO1 to output mode
+    gfx_Cls();
+    txt_Set(FONT_SIZE, FONT3);
+    print("Memory available = ",mem_Heap(),"\n");  // show the biggest chunk we have
+
+
+
+
+    aWindow.title := "TEST";
+    aWindow.xpos := 50;
+    aWindow.ypos := 25;
+    aWindow.font := FONT2;
+    aWindow(INITIALIZE);                                     // draw window / buttons for the first time
+
+    pause(500);
+
+    aWindow.statusbartext := init_Drive();                   // mount the disk, setting the status message
+    aWindow(REDRAW_STATUS);                                  // update the status bar
+
+    // now just stay in a loop
+    repeat
+        res := aWindow(SCAN);                                // scan for any changes
+
+        // if return value non zero, its a button number
+        if(res)
+            if(res == MAXBUTTONS)                     // if it was the exit (last) button
+
+                // would normall do some exit action here
+                // but for demo we just reset the window
+                aWindow(INITIALIZE);            //Need to figure out what to do here
+                ProgramExit();
+            else
+                // update status and title
+                to(tempstr); print("Button #",res);                 // print the return value to the temp buffer
+                to(APPEND); putstr("         ");                    // clear string tail
+                aWindow.statusbartext := tempstr;                   // use temp buffer for status text
+                aWindow(REDRAW_STATUS);                             // update the status bar
+
+                to(tempstr); putstr(buttons[res-1]);            // print the button text to the temp buffer
+                to(APPEND); putstr("         ");                    // clear string tail
+                aWindow.title := tempstr;                           // use temp buffer for title text
+                aWindow(REDRAW_TITLE);                              // update the title bar
+
+
+                if(res==1)
+                    file_Run("CAMERA.4xe",0);                    // just run the prog, no args
+                    goto redo;                                  //re-mount disk, reload filename
+                endif
+
+                if(res==2)
+                    file_Run("IMAGES.4xe",0);                    // just run the prog, no args
+                    goto redo;
+                endif
+
+                if(res==3)                      //TEMP may potentially take an input...
+                    file_Run("TEMP.4xe",0);                    // just run the prog, no args
+                    goto redo;
+                endif
+
+               if(res==4)
+                    if (pin_Read(IO1_PIN) == 0) //Read value of the IO1 pin
+                        pin_HI(IO1_PIN);        //sets pin to HIGH -- Turns on Light
+
+                    else
+                        pin_LO(IO1_PIN);        //sets pin LO -- Turns off Light
+                    endif
+
+                endif
+
+            endif
+
+        endif
+
+    forever
+
+endfunc
+
+
+
+// enumeration for the window's sub functions
+#constant INITIALIZE, UPDATE, SCAN, REDRAW_TITLE, REDRAW_STATUS
+
+// example for a Window object
+func aWindow(var subfunc)
+
+    // window properties
+    var private xpos, ypos;                         // window position
+    var private windowWidth := 140;                 // default window width
+    var private windowHeight := 284;                // default window height
+    var private windowcolor := WINDOW_COLOR;        // default window colour
+
+    // title bar properties
+    //var private title := "NO NAME";                 // title bar text pointer, set default title bar text
+    var private title;                 // title bar text pointer
+    var private font := FONT3;                      // default font
+    var private titlebarheight := 20;               // default title bar height
+    var private titlebarcolor := TITLEBAR_COLOR;    // default title bar colour
+    var private titletextcolor := TITLETXT_COLOR;   // default title text colour
+
+    // status bar properties
+    //var private statusbartext := "status";          // status bar text pointer, set default status bar text
+    var private statusbartext;                      // status bar text pointer
+    var private statusbarheight := 12;              // default status bar height
+    var private statusbarcolor := STATUSBAR_COLOR;  // default status bar colour
+    var private statustextcolor := STATUSTXT_COLOR; // default status text colour
+
+    var private btncolor := LIGHTGREY;              // default button colour
+    var private textcolor := BLACK;                 // default text colour
+    //var private xgap := 8;                        // horizontal gap between buttons
+    var private ygap := 4;                          // vertical gap between buttons
+
+    // tbd, there is no need to have touch test co-ords private,
+    // making them local vaiables will free up some precious memory
+    // for the running app
+    var private touchX1[MAXBUTTONS];                // touch regions for the buttons
+    var private touchY1[MAXBUTTONS];
+    var private touchX2[MAXBUTTONS];
+    var private touchY2[MAXBUTTONS];
+    var private vButtonState[MAXBUTTONS];           // button state flags (bit 0 = up:down state)
+    var private vOldButtonState[MAXBUTTONS];        // OLD button state flags (bit 0 = up:down state)
+
+    var private lastkey;                            // last button pressed
+
+    // messages
+    var private touchState;                         // window touch status
+    var private touchX;                             // window x position
+    var private touchY;                             // window y position
+
+
+    // local variables
+    var n, x, y, x1, y1, x2, y2, oldFG, oldBG, oldFont, r, retval;
+
+    // save the things we will change
+    oldFont := peekW(TXT_FONT_ID);
+    oldFG   := peekW(TEXT_COLOUR);
+    oldBG   := peekW(TEXT_BACKGROUND);
+
+    // functions methods
+    gosub(subfunc), (Initialize, Update, Scan, RedrawTitleBar, RedrawStatusBar);
+
+    // restore things we changed
+    txt_FontID(oldFont);
+    txt_FGcolour(oldFG);
+    txt_BGcolour(oldBG);
+
+    //return retval;                                  // exit the window function with result of method
+    goto exitfunc;
+
+    //--------------------------------------------------
+    // reset the window and redraw the buttons to the up state
+    //--------------------------------------------------
+    Initialize:
+        touch_Set(TOUCH_ENABLE);                                                                                                    // enable the touch screen
+        gfx_Panel(PANEL_RAISED, xpos, ypos, windowWidth, titlebarheight, titlebarcolor);                                            // draw title bar panel
+        gfx_Panel(PANEL_SUNKEN, xpos, peekW(GFX_Y2), windowWidth, windowHeight-titlebarheight-statusbarheight, windowcolor);        // draw main window panel
+        gfx_Panel(PANEL_RAISED, xpos, peekW(GFX_Y2), windowWidth, statusbarheight, statusbarcolor);                                 // draw status bar panel
+
+        x := xpos+windowWidth-titlebarheight;
+        y := ypos+2;
+        gfx_Button(BUTTON_UP, x, y, OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // place the quit button
+
+        gosub RedrawTitleBar;                                                   // set the title
+        gosub RedrawStatusBar;                                                  // set the status bar text
+
+        x1 := xpos+24;
+        y1 := ypos+26;                                  // set the position of the first button offset in the window
+
+        for(n:=0; n<MAXBUTTONS-1; n++)                  // draw the 4 ush buttons
+
+            // reset the button states
+            vButtonState[n]:=UP;
+            vOldButtonState[n]:=UP;
+
+            // place a button
+            gfx_Button( BUTTON_UP, x1, y1, btncolor, textcolor, font, 1, 1, buttons[n] );
+
+            // get the bottom/right extent
+            x2 := gfx_Get(RIGHT_POS);
+            y2 := gfx_Get(BOTTOM_POS);
+
+            // register the button position
+            touchX1[n] := x1;
+            touchY1[n] := y1;
+            touchX2[n] := x2;
+            touchY2[n] := y2;
+            y1 := y2 + ygap;                    // move down
+            //x1 += 10;
+        next
+
+        touchX1[n] := x;                        // finally, register exit button position
+        touchY1[n] := y;
+        touchX2[n] := x+20;
+        touchY2[n] := y+20;
+
+        title := "NO NAME";                     // set default title bar text
+        statusbartext := "status...";           // set default status bar text
+
+        /*
+        Do any other initializions here
+        */
+
+        endsub;
+
+    //--------------------------------------------------
+    // Update status bar text
+    //--------------------------------------------------
+     RedrawStatusBar:
+        txt_FontID(FONT1);
+        txt_FGcolour(statustextcolor);
+        txt_BGcolour(statusbarcolor);
+        gfx_MoveTo(xpos+8, ypos+windowHeight-11);
+        putstr(statusbartext);                         // set the status bar text
+        endsub;
+
+
+    //--------------------------------------------------
+    // Update status bar text
+    //--------------------------------------------------
+     RedrawTitleBar:
+        txt_FontID(FONT2);
+        txt_FGcolour(titletextcolor);
+        txt_BGcolour(titlebarcolor);
+        gfx_MoveTo(xpos+8, ypos+5);
+        title[7] := 0;  // ADDED (truncate title string
+        putstr(title);                                 // set the title text
+        endsub;
+
+    //--------------------------------------------------
+    // Update any buttons that have changed state
+    //--------------------------------------------------
+    Update:
+         for(n:=0; n<MAXBUTTONS; n++)
+            if ( vButtonState[n] != vOldButtonState[n])
+                vOldButtonState[n] := vButtonState[n];
+                //if(n < MAXBUTTONS-1)
+                    gfx_Button( vButtonState[n], touchX1[n], touchY1[n], btncolor, textcolor, font, 1, 1, buttons[n] ); // redraw the button
+                //else
+                //    gfx_Button(vButtonState[n], touchX1[n], touchY1[n], OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // redraw the quit button correctly
+                //endif
+            endif
+        next
+
+        /*
+        Do any other update operations here....
+        */
+
+    endsub;
+
+    //--------------------------------------------------
+    // scan for any button presses
+    //--------------------------------------------------
+    Scan:
+    touchState := touch_Get(TOUCH_STATUS);                  // save touchscreen status
+    touchX := touch_Get(TOUCH_GETX);                        // and current position
+    touchY := touch_Get(TOUCH_GETY);
+
+    // if screen touched,
+    if(touchState == TOUCH_PRESSED)
+
+        // scan the hot spots list
+        while (n < MAXBUTTONS && !r)
+            if (touchX >= touchX1[n] && touchX < touchX2[n] && touchY >= touchY1[n] && touchY < touchY2[n]) r := n+1;
+            n++;
+        wend
+
+        // if any button was pressed
+        if(r)
+            lastkey := r;                                   // remeber the button
+            vButtonState[r-1] := DOWN;                      // set it to down state
+            gosub Update;                                   // update the button action
+        endif
+    endif
+
+    if((touchState == TOUCH_RELEASED) && lastkey)           // if touch released and we remember a previous button press,
+        retval := lastkey;                                  // set return value with the button number
+        vButtonState[lastkey-1] := UP;                      // last button is now UP
+        lastkey := 0;                                       // clear button memory
+        gosub Update;                                       // update the button action
+    endif
+    endsub;
+
+exitfunc:
+    return retval;
+endfunc
+
+
+
+//==================================================================================================
