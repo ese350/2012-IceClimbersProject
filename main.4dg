@@ -74,15 +74,13 @@ func main()
 redo:
     pin_Set(OUTPUT, IO1_PIN);   //Sets IO1 to output mode
     gfx_Cls();
+    gfx_Set(SCREEN_MODE, LANDSCAPE);
     txt_Set(FONT_SIZE, FONT3);
     print("Memory available = ",mem_Heap(),"\n");  // show the biggest chunk we have
 
-
-
-
-    aWindow.title := "TEST";
-    aWindow.xpos := 50;
-    aWindow.ypos := 25;
+    aWindow.title := "Embed Glove";
+    aWindow.xpos := 0;
+    aWindow.ypos := 0;
     aWindow.font := FONT2;
     aWindow(INITIALIZE);                                     // draw window / buttons for the first time
 
@@ -105,10 +103,12 @@ redo:
                 ProgramExit();
             else
                 // update status and title
+                /*
                 to(tempstr); print("Button #",res);                 // print the return value to the temp buffer
                 to(APPEND); putstr("         ");                    // clear string tail
                 aWindow.statusbartext := tempstr;                   // use temp buffer for status text
                 aWindow(REDRAW_STATUS);                             // update the status bar
+                */
 
                 to(tempstr); putstr(buttons[res-1]);                // print the button text to the temp buffer
                 to(APPEND); putstr("         ");                    // clear string tail
@@ -159,8 +159,8 @@ func aWindow(var subfunc)
 
     // window properties
     var private xpos, ypos;                         // window position
-    var private windowWidth := 140;                 // default window width
-    var private windowHeight := 284;                // default window height
+    var private windowWidth := 320;                 // default window width
+    var private windowHeight := 240;                // default window height
     var private windowcolor := WINDOW_COLOR;        // default window colour
 
     // title bar properties
@@ -181,9 +181,10 @@ func aWindow(var subfunc)
     var private btncolor := LIGHTGREY;              // default button colour
     var private textcolor := BLACK;                 // default text colour
     //var private xgap := 8;                        // horizontal gap between buttons
-    var private ygap := 4;                          // vertical gap between buttons
+    var private ygap := 15;                          // vertical gap between buttons
 
-    // tbd, there is no need to have touch test co-ords private,
+    // tbd, there is no need to have touch test
+    //co-ords private,
     // making them local vaiables will free up some precious memory
     // for the running app
     var private touchX1[MAXBUTTONS];                // touch regions for the buttons
@@ -246,7 +247,7 @@ func aWindow(var subfunc)
             vOldButtonState[n]:=UP;
 
             // place a button
-            gfx_Button( BUTTON_UP, x1, y1, btncolor, textcolor, font, 1, 1, buttons[n] );
+            gfx_Button( BUTTON_UP, x1, y1, btncolor, textcolor, font, 3, 3, buttons[n] );
 
             // get the bottom/right extent
             x2 := gfx_Get(RIGHT_POS);
@@ -307,7 +308,7 @@ func aWindow(var subfunc)
             if ( vButtonState[n] != vOldButtonState[n])
                 vOldButtonState[n] := vButtonState[n];
                 //if(n < MAXBUTTONS-1)
-                    gfx_Button( vButtonState[n], touchX1[n], touchY1[n], btncolor, textcolor, font, 1, 1, buttons[n] ); // redraw the button
+                    gfx_Button( vButtonState[n], touchX1[n], touchY1[n], btncolor, textcolor, font, 3, 3, buttons[n] ); // redraw the button
                 //else
                 //    gfx_Button(vButtonState[n], touchX1[n], touchY1[n], OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // redraw the quit button correctly
                 //endif
@@ -339,7 +340,7 @@ func aWindow(var subfunc)
 
         // if any button was pressed
         if(r)
-            lastkey := r;                                   // remeber the button
+            lastkey := r;                                   // remember the button
             vButtonState[r-1] := DOWN;                      // set it to down state
             gosub Update;                                   // update the button action
         endif
@@ -349,7 +350,7 @@ func aWindow(var subfunc)
         retval := lastkey;                                  // set return value with the button number
         vButtonState[lastkey-1] := UP;                      // last button is now UP
         lastkey := 0;                                       // clear button memory
-        gosub Update;                                       // update the button action
+        gosub Update;                                  // update the button action
     endif
     endsub;
 
