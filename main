@@ -1,0 +1,13 @@
+#!/bin/bash
+python pyget.py
+input=$(<LCD.txt)
+if [ "$input" == "C" ]; 
+then
+bash camera
+elif [ "$input" == "l" ]; 
+then
+bash pylight
+else
+echo > LCD.txt
+bash main
+fi

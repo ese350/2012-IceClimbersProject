@@ -1,0 +1,6 @@
+#!/bin/bash
+echo 21 > /sys/kernel/debug/omap_mux/spi0_sclk
+echo 1 > /sys/kernel/debug/omap_mux/spi0_d0
+echo 20 > /sys/kernel/debug/omap_mux/uart1_rxd
+echo 0 > /sys/kernel/debug/omap_mux/uart1_txd
+echo 38 > /sys/class/gpio/export

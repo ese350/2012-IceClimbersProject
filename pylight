@@ -1,0 +1,4 @@
+#!/bin/bash
+cat /sys/class/gpio/gpio38/value > value.txt
+python pylight.py
+bash main
