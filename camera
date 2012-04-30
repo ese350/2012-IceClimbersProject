@@ -1,0 +1,16 @@
+#!/bin/bash
+time=6s
+time2=2s
+./snap & 
+sleep $time
+kill %1
+zbarimg Capture0.jpg Capture2.jpg Capture4.jpg Capture6.jpg Capture7.jpg Capture8.jpg > camera.txt
+sleep $time2
+rm  Capture0.jpg Capture2.jpg Capture4.jpg Capture6.jpg Capture7.jpg Capture8.jpg 
+sort -u camera.txt > camsorted.txt
+awk 'FNR>1' camsorted.txt > cam2.txt
+cat cam2.txt
+awk -F : '{print $2}' cam2.txt > cam1.txt
+cat cam1.txt
+python pysend.py
+bash main
