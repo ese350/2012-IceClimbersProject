@@ -1,24 +1,13 @@
 #platform "uLCD-32PT_GFX2"
 
-/*************************************************
-* Filename: Main.4dg
-* Description: the main program to be run on LCD Fash
-*
-* NB:- This program must be written to flash so
-* it becomes the top down program.
-*
-**************************************************/
-
 #inherit "4DGL_16bitColours.fnc"
-//#inherit "FONT4.fnt"
+#inherit "FONT4.fnt"
 
 #MODE RUNFLASH      // this prog intended to be 'front end' and run from FLASH
 
 #STACK 800          // make sure stack is big enough for main prog and called functions/programs
 
-
-
-// colour scheme
+// Color Scheme
 #CONST
     WINDOW_COLOR        GRAY
     TITLEBAR_COLOR      NAVY
@@ -31,32 +20,40 @@
 // local global variables
 //--------------------------------------------------------------------------------------------
 
-
+var tempstr[20];                        // general purpose string, 40 bytes
 
 var D;                                  // pointer to disk struct
 
-                                        // (we keep 2 copies so we can test for a state -
-var tempstr[20];                        // general purpose string, 40 bytes
+var imgfile, startvid;
 
+var serialin;
 
-
-// fixed button texts
+// Butons
 #DATA
-    word buttons tst1, tst2, tst3, tst4, btnexit
-    byte tst1  "CAMERA    \0"
-    byte tst2  "PICTURES   \0"
-    byte tst3  "TEMPERATURE\0"
-    byte tst4  "LIGHTS    \0"
-    byte btnexit "_\0"
+    word buttons tst1, tst2, tst3, tst4, tst5, btnexit
+    byte tst1    "CAMERA    \0"
+    byte tst2    "IMG FILES \0"
+    byte tst3    "LIGHTS    \0"
+    byte tst4    "<\0"
+    byte tst5    ">\0"
+    byte btnexit "EXIT\0"
 #END
 
-#constant MAXBUTTONS sizeof(buttons)
-
+#CONST
+    MAXBUTTONS sizeof(buttons)
+    MAXWIDTH 320
+    MAXHEIGHT 240
+#END
 
 // mount the drive, return status message
 // and D will be null if mount fails
 
-//Left same as original. Probably needed
+var touchX1[MAXBUTTONS];                // touch regions for the buttons
+var touchY1[MAXBUTTONS];
+var touchX2[MAXBUTTONS];
+var touchY2[MAXBUTTONS];
+
+
 func init_Drive()
     var retry := 10;
     if(!(D := file_Mount()))
@@ -68,99 +65,189 @@ func init_Drive()
     return "Disk mounted";
 endfunc
 
-//==================================================================================================
+//=============================================================================================
+// Main function
+//=============================================================================================
+
 func main()
-    var res;            // message from window
+    var res;                                            // Value corresponds to which button is pressed
+    gfx_Cls();
+    gfx_Set(SCREEN_MODE, LANDSCAPE);
+    init_Drive();
+    //media_Init();
+    //media_SetSector(0x0002, 0x0041);
+    //media_Video(0,0);
 redo:
-    pin_Set(OUTPUT, IO1_PIN);   //Sets IO1 to output mode
     gfx_Cls();
     gfx_Set(SCREEN_MODE, LANDSCAPE);
     txt_Set(FONT_SIZE, FONT3);
-    print("Memory available = ",mem_Heap(),"\n");  // show the biggest chunk we have
-
-    aWindow.title := "Embed Glove";
-    aWindow.xpos := 0;
-    aWindow.ypos := 0;
-    aWindow.font := FONT2;
-    aWindow(INITIALIZE);                                     // draw window / buttons for the first time
+    // Set up initial homescreen and buttons
+    home.title := "Embed Glove";
+    home.xpos := 0;
+    home.ypos := 0;
+    home.font := FONT2;
+    home(INITIALIZE);
+    home(MAINBTNS);
+    home(LIGHTBTN);
 
     pause(500);
 
-    aWindow.statusbartext := init_Drive();                   // mount the disk, setting the status message
-    aWindow(REDRAW_STATUS);                                  // update the status bar
+    home.statusbartext := init_Drive();                   // mount the disk, setting the status message
+    home(REDRAW_STATUS);                                  // update the status bar
 
-    // now just stay in a loop
     repeat
-        res := aWindow(SCAN);                                // scan for any changes
+         res := home(SCAN);                               // scan for any changes
 
-        // if return value non zero, its a button number
-        if(res)
-            if(res == MAXBUTTONS)                            // if it was the exit (last) button
+         if(res)
+            to(tempstr); putstr(buttons[res-1]);          // print the button text to the temp buffer
+            to(APPEND); putstr("         ");              // clear string tail
+            home.title := tempstr;                        // use temp buffer for title text
+            home(REDRAW_TITLE);
 
-                // would normall do some exit action here
-                // but for demo we just reset the window
-                aWindow(INITIALIZE);                        //Need to figure out what to do here
-                ProgramExit();
-            else
-                // update status and title
-                /*
-                to(tempstr); print("Button #",res);                 // print the return value to the temp buffer
-                to(APPEND); putstr("         ");                    // clear string tail
-                aWindow.statusbartext := tempstr;                   // use temp buffer for status text
-                aWindow(REDRAW_STATUS);                             // update the status bar
-                */
-
-                to(tempstr); putstr(buttons[res-1]);                // print the button text to the temp buffer
-                to(APPEND); putstr("         ");                    // clear string tail
-                aWindow.title := tempstr;                           // use temp buffer for title text
-                aWindow(REDRAW_TITLE);                              // update the title bar
-
-
-                if(res==1)
-                    file_Run("CAMERA.4xe",0);                       // just run the prog, no args
-                    goto redo;                                      // re-mount disk, reload filename
-                endif
-
-                if(res==2)
-                    file_Run("IMAGES.4xe",0);                       // just run the prog, no args
-                    goto redo;
-                endif
-
-                if(res==3)                      //TEMP may potentially take an input...
-                    file_Run("TEMP.4xe",0);                         // just run the prog, no args
-                    goto redo;
-                endif
-
-               if(res==4)
-                    if (pin_Read(IO1_PIN) == 0) //Read value of the IO1 pin
-                        pin_HI(IO1_PIN);        //sets pin to HIGH -- Turns on Light
-
-                    else
-                        pin_LO(IO1_PIN);        //sets pin LO -- Turns off Light
-                    endif
-
-                endif
-
+            if(res==1)                                    // If camera is pressed
+                gfx_Cls();
+                camera();
+                goto redo;
             endif
 
+            if(res==2)                                    // If files is pressed
+                gfx_Cls();
+                files();
+                goto redo;
+            endif
+
+            if(res==3)                                    // If light is pressed
+                gfx_Cls();
+                light();                                //send signal to beagle to turn off/on LED
+                goto redo;
+            endif
+
+            if(res==6)                                    // If Exit is pressed
+                gfx_Cls();
+                goto redo;
+            endif
+        endif
+    forever
+endfunc
+
+func camera()                                         // Function for when camera is pressed
+    var private exitpress := 0;                                 // 0 - unpressed; 1 - pressed
+    var private touchState, touchX, touchY;
+    var private input;
+    var private filenum := 0;
+    serout('c');
+reset:
+    gfx_Cls();
+    if(filenum==1)
+        openfile("test.dat","test.gci", 1);
+    endif
+    if(filenum==1)
+        openfile("test.dat","test.gci", 2);
+    endif
+    if(filenum==1)
+        openfile("test.dat","test.gci", 3);
+    endif
+
+    home(EXITBTN);
+
+    while(exitpress==0)
+        if(filenum==0)
+            if(serin()<0)
+            endif
+            pause(500);
+            input := serin();
+            if(input=='B')
+                 filenum := 1;
+                 pause(500);
+                 goto reset;
+            endif
+            if(input=='G')
+                 filenum := 2;
+                 pause(500);
+                 goto reset;
+            endif
+            if(input=='I')
+                 filenum := 3;
+                 pause(500);
+                 goto reset;
+            endif
         endif
 
-    forever
+        touchState := touch_Get(TOUCH_STATUS);                  // save touchscreen status
+        touchX := touch_Get(TOUCH_GETX);                        // and current position
+        touchY := touch_Get(TOUCH_GETY);
 
+        if(touchState == TOUCH_PRESSED)
+            if (touchX >= MAXWIDTH-40 && touchX < MAXWIDTH && touchY >= 0 && touchY < 20) exitpress := 1;
+        endif
+
+    wend
+    input := -1;
+    filenum := 0;
+    exitpress := 0;
+endfunc
+
+func files()
+    var private exitpress := 0;
+    var private touchState, touchX, touchY;
+    var private imgnum := 0;
+    imgfile := file_LoadImageControl("all.dat","all.gci",0);
+redo:
+    img_Show(imgfile, imgnum);
+    home(EXITBTN);
+    home(LIGHTBTN);
+    home(ARROWBTNS);
+    while(exitpress==0)
+
+        touchState := touch_Get(TOUCH_STATUS);                  // save touchscreen status
+        touchX := touch_Get(TOUCH_GETX);                        // and current position
+        touchY := touch_Get(TOUCH_GETY);
+        if(touchState == TOUCH_PRESSED)
+            if (touchX >= MAXWIDTH-40 && touchX < MAXWIDTH && touchY >= 0 && touchY < 20)
+                exitpress := 1;
+            endif
+            if (touchX >= MAXHEIGHT && touchX > MAXWIDTH && touchY >= (MAXHEIGHT-18) && touchY < MAXHEIGHT)
+                light();
+            endif
+            if (touchX >= touchX1[3] && touchX <= touchX2[3] && touchY >= touchY1[3] && touchY <= touchY2[3])
+                if(imgnum==0)
+                    imgnum := 2;
+                else
+                    imgnum--;
+                endif
+                goto redo;
+            endif
+            if (touchX >= touchX1[4] && touchX <= touchX2[4] && touchY >= touchY1[4] && touchY <= touchY2[4])
+                if(imgnum==2)
+                    imgnum := 0;
+                else
+                    imgnum++;
+                endif
+                goto redo;
+            endif
+        endif
+    wend
+    exitpress := 0;
+endfunc
+
+func light()
+    serout('l');
+endfunc
+
+#constant INITIALIZE, MAINBTNS, LIGHTBTN, EXITBTN, ARROWBTNS, UPDATE, SCAN, REDRAW_TITLE, REDRAW_STATUS
+
+func openfile(var filedat, var filegci, var picnum)
+    imgfile := file_LoadImageControl(filedat,filegci,0);
+    img_Show(imgfile, picnum);
 endfunc
 
 
+func home(var subfunc)
 
-// enumeration for the window's sub functions
-#constant INITIALIZE, UPDATE, SCAN, REDRAW_TITLE, REDRAW_STATUS
-
-// example for a Window object
-func aWindow(var subfunc)
-
-    // window properties
+// window properties
     var private xpos, ypos;                         // window position
-    var private windowWidth := 320;                 // default window width
-    var private windowHeight := 240;                // default window height
+    var private windowWidth := MAXWIDTH;                 // default window width
+    var private windowHeight := MAXHEIGHT;                // default window height
     var private windowcolor := WINDOW_COLOR;        // default window colour
 
     // title bar properties
@@ -183,14 +270,12 @@ func aWindow(var subfunc)
     //var private xgap := 8;                        // horizontal gap between buttons
     var private ygap := 15;                          // vertical gap between buttons
 
+
     // tbd, there is no need to have touch test
     //co-ords private,
     // making them local vaiables will free up some precious memory
     // for the running app
-    var private touchX1[MAXBUTTONS];                // touch regions for the buttons
-    var private touchY1[MAXBUTTONS];
-    var private touchX2[MAXBUTTONS];
-    var private touchY2[MAXBUTTONS];
+
     var private vButtonState[MAXBUTTONS];           // button state flags (bit 0 = up:down state)
     var private vOldButtonState[MAXBUTTONS];        // OLD button state flags (bit 0 = up:down state)
 
@@ -211,7 +296,7 @@ func aWindow(var subfunc)
     oldBG   := peekW(TEXT_BACKGROUND);
 
     // functions methods
-    gosub(subfunc), (Initialize, Update, Scan, RedrawTitleBar, RedrawStatusBar);
+    gosub(subfunc), (Initialize, Mainbtns, Lightbtn, Exitbtn, Arrowbtns, Update, Scan, RedrawTitleBar, RedrawStatusBar);
 
     // restore things we changed
     txt_FontID(oldFont);
@@ -230,17 +315,23 @@ func aWindow(var subfunc)
         gfx_Panel(PANEL_SUNKEN, xpos, peekW(GFX_Y2), windowWidth, windowHeight-titlebarheight-statusbarheight, windowcolor);        // draw main window panel
         gfx_Panel(PANEL_RAISED, xpos, peekW(GFX_Y2), windowWidth, statusbarheight, statusbarcolor);                                 // draw status bar panel
 
-        x := xpos+windowWidth-titlebarheight;
-        y := ypos+2;
-        gfx_Button(BUTTON_UP, x, y, OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // place the quit button
-
         gosub RedrawTitleBar;                                                   // set the title
         gosub RedrawStatusBar;                                                  // set the status bar text
 
-        x1 := xpos+24;
-        y1 := ypos+26;                                  // set the position of the first button offset in the window
+        title := "Embed Glove";                     // set default title bar text
+        statusbartext := "status...";           // set default status bar text
 
-        for(n:=0; n<MAXBUTTONS-1; n++)                  // draw the 4 ush buttons
+        /*
+        Do any other initializions here
+        */
+
+        endsub;
+
+    Mainbtns:
+        x1 := xpos+24;
+        y1 := ypos+40;                                  // set the position of the first button offset in the window
+
+        for(n:=0; n<2; n++)                  // draw the push buttons
 
             // reset the button states
             vButtonState[n]:=UP;
@@ -258,23 +349,43 @@ func aWindow(var subfunc)
             touchY1[n] := y1;
             touchX2[n] := x2;
             touchY2[n] := y2;
+
             y1 := y2 + ygap;                    // move down
             //x1 += 10;
         next
-
-        touchX1[n] := x;                        // finally, register exit button position
-        touchY1[n] := y;
-        touchX2[n] := x+20;
-        touchY2[n] := y+20;
-
-        title := "NO NAME";                     // set default title bar text
-        statusbartext := "status...";           // set default status bar text
-
-        /*
-        Do any other initializions here
-        */
-
         endsub;
+
+    Lightbtn:
+        gfx_Button(BUTTON_UP, MAXHEIGHT, MAXHEIGHT-18, btncolor, textcolor, FONT1, 1, 1, buttons[2] );      // place the light button
+        touchX1[2] := MAXHEIGHT;
+        touchY1[2] := MAXHEIGHT-18;
+        touchX2[2] := gfx_Get(RIGHT_POS);
+        touchY2[2] := gfx_Get(BOTTOM_POS);
+        endsub;
+
+    Exitbtn:
+        x := xpos+windowWidth-40;
+        y := ypos;
+        gfx_Button(BUTTON_UP, x, y, OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // place the quit button
+        touchX1[5] := x;                        // finally, register exit button position
+        touchY1[5] := y;
+        touchX2[5] := gfx_Get(RIGHT_POS);
+        touchY2[5] := gfx_Get(BOTTOM_POS);
+        endsub;
+
+    Arrowbtns:
+        gfx_Button(BUTTON_UP, 0, MAXHEIGHT/2-9, btncolor, textcolor, FONT1, 1, 2, buttons[3]);
+            touchX1[3] := 0;
+            touchY1[3] := MAXHEIGHT/2-9;
+            touchX2[3] := gfx_Get(RIGHT_POS);
+            touchY2[3] := gfx_Get(BOTTOM_POS);
+        gfx_Button(BUTTON_UP, MAXWIDTH-20, MAXHEIGHT/2-9, btncolor, textcolor, FONT1, 1, 2, buttons[4]);
+            touchX1[4] := MAXWIDTH-20;
+            touchY1[4] := MAXHEIGHT/2-9;
+            touchX2[4] := gfx_Get(RIGHT_POS);
+            touchY2[4] := gfx_Get(BOTTOM_POS);
+        endsub;
+
 
     //--------------------------------------------------
     // Update status bar text
@@ -286,7 +397,6 @@ func aWindow(var subfunc)
         gfx_MoveTo(xpos+8, ypos+windowHeight-11);
         putstr(statusbartext);                         // set the status bar text
         endsub;
-
 
     //--------------------------------------------------
     // Update status bar text
@@ -307,11 +417,18 @@ func aWindow(var subfunc)
          for(n:=0; n<MAXBUTTONS; n++)
             if ( vButtonState[n] != vOldButtonState[n])
                 vOldButtonState[n] := vButtonState[n];
-                //if(n < MAXBUTTONS-1)
+                if(n < 2)
                     gfx_Button( vButtonState[n], touchX1[n], touchY1[n], btncolor, textcolor, font, 3, 3, buttons[n] ); // redraw the button
-                //else
-                //    gfx_Button(vButtonState[n], touchX1[n], touchY1[n], OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // redraw the quit button correctly
-                //endif
+                endif
+                if(n==2)
+                    gfx_Button(vButtonState[n], MAXHEIGHT, touchY1[n], btncolor, textcolor, FONT1, 1, 1, buttons[n] );      // redraw the light button
+                endif
+                if((n==3) || (n==4))
+                    gfx_Button( vButtonState[n], touchX1[n], touchY1[n], btncolor, textcolor, font, 1, 2, buttons[n]);      // redraw the arrow buttons                end(if                                if(n==5)
+                endif
+                if(n>=6)
+                    gfx_Button(vButtonState[n], touchX1[n], touchY1[n], OLIVE, ORANGE, FONT1, 1, 1, btnexit );      // redraw the quit button correctly
+                endif
             endif
         next
 
@@ -325,37 +442,37 @@ func aWindow(var subfunc)
     // scan for any button presses
     //--------------------------------------------------
     Scan:
-    touchState := touch_Get(TOUCH_STATUS);                  // save touchscreen status
-    touchX := touch_Get(TOUCH_GETX);                        // and current position
-    touchY := touch_Get(TOUCH_GETY);
+        touchState := touch_Get(TOUCH_STATUS);                  // save touchscreen status
+        touchX := touch_Get(TOUCH_GETX);                        // and current position
+        touchY := touch_Get(TOUCH_GETY);
 
-    // if screen touched,
-    if(touchState == TOUCH_PRESSED)
+        // if screen touched,
+        if(touchState == TOUCH_PRESSED)
 
-        // scan the hot spots list
-        while (n < MAXBUTTONS && !r)
-            if (touchX >= touchX1[n] && touchX < touchX2[n] && touchY >= touchY1[n] && touchY < touchY2[n]) r := n+1;
-            n++;
-        wend
+            // scan the hot spots list
+            while (n < MAXBUTTONS && !r)
+                if (touchX >= touchX1[n] && touchX < touchX2[n] && touchY >= touchY1[n] && touchY < touchY2[n]) r := n+1;
+                n++;
+            wend
 
-        // if any button was pressed
-        if(r)
-            lastkey := r;                                   // remember the button
-            vButtonState[r-1] := DOWN;                      // set it to down state
-            gosub Update;                                   // update the button action
+            // if any button was pressed
+            if(r)
+                lastkey := r;                                   // remember the button
+                vButtonState[r-1] := DOWN;                      // set it to down state
+                gosub Update;                                   // update the button action
+            endif
         endif
-    endif
 
-    if((touchState == TOUCH_RELEASED) && lastkey)           // if touch released and we remember a previous button press,
-        retval := lastkey;                                  // set return value with the button number
-        vButtonState[lastkey-1] := UP;                      // last button is now UP
-        lastkey := 0;                                       // clear button memory
-        gosub Update;                                  // update the button action
-    endif
+        if((touchState == TOUCH_RELEASED) && lastkey)           // if touch released and we remember one of the first three buttons pressed
+            retval := lastkey;                                  // set return value with the button number
+            vButtonState[lastkey-1] := UP;                      // last button is now UP
+            lastkey := 0;                                       // clear button memory
+            gosub Update;                                  // update the button action
+        endif
     endsub;
 
-exitfunc:
-    return retval;
+    exitfunc:
+        return retval;
 endfunc
 
 
